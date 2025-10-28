@@ -1,25 +1,46 @@
+// src/app/api/admin/products/new/route.ts
+export const runtime = "nodejs";
+
 import { NextResponse } from "next/server";
-import { createProduct } from "../../../../../lib/db";
+import { createProduct, type Product } from "@/lib/db";
 
-export async function POST(req: Request){
+export async function POST(req: Request) {
   const fd = await req.formData();
-  const priceRub = parseFloat(String(fd.get("price")||"0").replace(",", "."));
-  if(!fd.get("sku") || !fd.get("title") || !priceRub) {
-    return NextResponse.json({error:"Заполните SKU, Название и Цену"}, {status:400});
-  }
 
-  await createProduct({
-    sku: String(fd.get("sku")),
-    title: String(fd.get("title")),
-    description: (fd.get("description") ? String(fd.get("description")) : null),
+  const getStr = (key: string) => {
+    const v = fd.get(key);
+    return typeof v === "string" && v.trim() ? v.trim() : null;
+  };
+
+  const getNum = (key: string) => {
+    const v = fd.get(key);
+    if (typeof v !== "string") return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  };
+
+  // Цена в рублях как целое число (у нас price: INTEGER в БД)
+  const priceRub = getNum("price") ?? 0;
+
+  const data: Partial<Product> = {
+    sku: getStr("sku"),
+    title: getStr("title") || "Без названия",
+    description: getStr("description"),
     price: priceRub,
+    currency: "RUB",
     inStock: !!fd.get("inStock"),
-    widthMm: fd.get("widthMm") ? Number(fd.get("widthMm")) : null,
-    pileHeight: fd.get("pileHeight") ? Number(fd.get("pileHeight")) : null,
-    material: fd.get("material") ? String(fd.get("material")) : null,
-    color: fd.get("color") ? String(fd.get("color")) : null,
-    imageUrl: fd.get("imageUrl") ? String(fd.get("imageUrl")) : null,
-  });
+    color: getStr("color"),
+    material: getStr("material"),
+    // ВАЖНО: имена соответствуют типу Product
+    rollWidthMm: getNum("rollWidthMm"),
+    pileHeightMm: getNum("pileHeightMm"),
+    imageUrl: getStr("imageUrl"),
+  };
 
-  return NextResponse.json({ok:true});
+  const p = await createProduct(data);
+  // после создания переходим на редактирование
+  return NextResponse.redirect(
+    new URL(`/admin/products/${encodeURIComponent(p.id)}/edit`, req.url),
+    { status: 303 }
+  );
 }

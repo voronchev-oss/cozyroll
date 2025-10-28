@@ -41,8 +41,8 @@ export default function NewProductPage(){
         </div>
 
         <div className="grid sm:grid-cols-2 gap-4">
-          <label className="grid gap-2">Ширина рулона, мм <input name="widthMm" type="number" className="border rounded-md px-3 py-2"/></label>
-          <label className="grid gap-2">Высота ворса, мм <input name="pileHeight" type="number" step="0.1" className="border rounded-md px-3 py-2"/></label>
+          <label className="grid gap-2">Ширина рулона, мм <input name="rollWidthMm" type="number" className="border rounded-md px-3 py-2"/></label>
+          <label className="grid gap-2">Высота ворса, мм <input name="pileHeightMm" type="number" step="0.1" className="border rounded-md px-3 py-2"/></label>
         </div>
 
         <div className="grid sm:grid-cols-2 gap-4">
