@@ -1,5 +1,6 @@
 // src/lib/db.ts — Postgres (Neon)
 import { Pool } from "pg";
+import type { QueryResult, QueryResultRow } from "pg"; // ✅ добавили типы
 
 if (!process.env.DATABASE_URL) {
   throw new Error("DATABASE_URL не задан. Проверь .env.local");
@@ -22,8 +23,8 @@ export type Product = {
   updatedAt: string;
 };
 
-// cтрока БД (как лежит в Postgres)
-type ProductRow = {
+// ✅ ВАЖНО: теперь ProductRow расширяет QueryResultRow
+type ProductRow = QueryResultRow & {
   id: string;
   sku: string | null;
   title: string;
@@ -42,7 +43,7 @@ type ProductRow = {
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }, // для Neon
+  ssl: { rejectUnauthorized: false }, // Neon
 });
 
 function mapRow(r: ProductRow): Product {
@@ -66,12 +67,15 @@ function mapRow(r: ProductRow): Product {
 
 // ===== helpers
 
-async function q<T = any>(sql: string, args: any[] = []) {
+// ✅ Обновили дженерики: теперь TRow extends QueryResultRow
+async function q<TRow extends QueryResultRow = QueryResultRow>(
+  sql: string,
+  args: any[] = []
+): Promise<QueryResult<TRow>> {
   try {
-    const res = await pool.query<T>(sql, args);
+    const res = await pool.query<TRow>(sql, args);
     return res;
   } catch (err: any) {
-    // дадим понятное сообщение
     throw new Error(`DB error: ${err?.message || String(err)} (sql: ${sql})`);
   }
 }
