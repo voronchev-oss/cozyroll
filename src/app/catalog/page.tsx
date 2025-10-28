@@ -2,7 +2,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 import Link from "next/link";
-import { listProducts, facetValues } from "../../lib/db";
+import { listProducts, facetValues } from "@/lib/db";
 
 const price = (c:number)=> new Intl.NumberFormat("ru-RU").format(Math.round(c/100));
 

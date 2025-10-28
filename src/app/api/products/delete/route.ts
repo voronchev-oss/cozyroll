@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { deleteProduct } from "../../../../lib/db";
+import { deleteProduct } from "@/lib/db";
 
 export async function POST(req: Request){
   const fd = await req.formData();

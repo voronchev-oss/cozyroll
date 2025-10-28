@@ -1,4 +1,4 @@
-import { listProducts } from "../../lib/db";
+import { listProducts } from "@/lib/db";
 
 export async function GET(){
   const site = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";

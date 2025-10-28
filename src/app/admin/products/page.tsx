@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { listProducts } from "../../../lib/db";
+import { listProducts } from "@/lib/db";
 const price = (c:number)=> new Intl.NumberFormat("ru-RU").format(Math.round(c/100));
 
 export default async function AdminProducts(){

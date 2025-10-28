@@ -1,37 +1,39 @@
-// всегда динамически, чтобы ловить изменения формы без кеша
-export const dynamic = "force-dynamic";
+// src/app/admin/login/page.tsx
+export const dynamic = "force-dynamic"; // не кешируем
 export const revalidate = 0;
 
 export default function AdminLoginPage() {
   return (
-    <section className="py-10 max-w-md mx-auto">
-      <h1 className="h2 mb-6">Вход в админку</h1>
-
-      <form action="/api/admin/login" method="POST" className="card card-pad grid gap-4">
-        <label className="grid gap-1">
-          <span className="text-sm">E-mail</span>
+    <main className="mx-auto max-w-md px-4 py-10">
+      <h1 className="text-2xl font-semibold mb-6">Вход в админку</h1>
+      <form method="POST" action="/api/auth/login" className="space-y-4">
+        <div>
+          <label className="block text-sm mb-1">E-mail</label>
           <input
-            type="email"
             name="email"
+            type="email"
             required
-            className="border rounded-md px-3 py-2"
+            className="w-full rounded border px-3 py-2"
             placeholder="admin@cozyroll.ru"
           />
-        </label>
-
-        <label className="grid gap-1">
-          <span className="text-sm">Пароль</span>
+        </div>
+        <div>
+          <label className="block text-sm mb-1">Пароль</label>
           <input
-            type="password"
             name="password"
+            type="password"
             required
-            className="border rounded-md px-3 py-2"
+            className="w-full rounded border px-3 py-2"
             placeholder="••••••••"
           />
-        </label>
-
-        <button className="btn">Войти</button>
+        </div>
+        <button
+          type="submit"
+          className="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
+        >
+          Войти
+        </button>
       </form>
-    </section>
+    </main>
   );
 }

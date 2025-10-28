@@ -1,17 +1,28 @@
+// src/middleware.ts
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-export function middleware(req: NextRequest){
+export const config = {
+  matcher: [
+    "/admin/:path*", // защищаем всё под /admin
+  ],
+};
+
+export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
-  if(pathname === "/admin/login") return NextResponse.next();
-  if(pathname.startsWith("/admin")){
-    const token = req.cookies.get("cozyroll_auth")?.value;
-    if(token !== "admin" && token !== "manager"){
-      const url = new URL("/admin/login", req.url);
-      url.searchParams.set("next", pathname);
-      return NextResponse.redirect(url);
-    }
+
+  // Страницу логина не защищаем
+  if (pathname.startsWith("/admin/login")) return NextResponse.next();
+
+  const cookie = req.cookies.get("cozyroll_auth")?.value;
+
+  if (cookie === "admin") {
+    return NextResponse.next();
   }
-  return NextResponse.next();
+
+  // не залогинен → на /admin/login
+  const url = req.nextUrl.clone();
+  url.pathname = "/admin/login";
+  url.searchParams.set("from", pathname);
+  return NextResponse.redirect(url);
 }
-export const config = { matcher: ["/admin/:path*"] };
