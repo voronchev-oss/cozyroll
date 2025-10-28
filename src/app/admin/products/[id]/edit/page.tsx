@@ -2,7 +2,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-import { getProduct, updateProduct } from "../../../../lib/db";
+import { getProduct, updateProduct } from "@/lib/db";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 
