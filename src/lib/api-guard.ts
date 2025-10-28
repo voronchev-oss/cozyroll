@@ -14,8 +14,12 @@ function getCookieFromHeader(req: Request, name: string): string | null {
   return null;
 }
 
-/** Требует валидную админ-сессию (JWT в куке). Если нет — вернёт JSON 401. Если всё ок — вернёт null. */
-export async function requireAdmin(req: Request) {
+/**
+ * Требует валидную админ-сессию (JWT в куке).
+ * Если нет — вернёт JSON 401 (Response).
+ * Если всё ок — вернёт null.
+ */
+export async function requireAdmin(req: Request): Promise<Response | null> {
   const token = getCookieFromHeader(req, AUTH_COOKIE_NAME || "__Host-cozyroll_sess");
   if (!token) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -24,12 +28,13 @@ export async function requireAdmin(req: Request) {
   if (!session) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
-  return null as const;
+  return null; // ✅ корректный возврат
 }
 
 /** Защита от CSRF: сравниваем токен в теле (hidden input name="csrf") с токеном в cookie */
-export function requireCsrf(req: Request, fd: FormData) {
+export function requireCsrf(req: Request, fd: FormData): boolean {
   const csrfBody = String(fd.get("csrf") || "");
   const csrfCookie = getCookieFromHeader(req, "cozyroll_csrf") || "";
   return csrfBody.length > 0 && csrfCookie.length > 0 && csrfBody === csrfCookie;
 }
+
