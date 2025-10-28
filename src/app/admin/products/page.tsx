@@ -1,41 +1,37 @@
-import Link from "next/link";
+export const runtime = "nodejs"; export const revalidate = 0;
 import { listProducts } from "@/lib/db";
-const price = (c:number)=> new Intl.NumberFormat("ru-RU").format(Math.round(c/100));
+import { cookies } from "next/headers";
 
 export default async function AdminProducts(){
   const items = await listProducts();
+  const csrf = cookies().get('cozyroll_csrf')?.value || '';
   return (
-    <section className="py-10">
-      <div className="flex items-center justify-between">
-        <h1 className="h2">Товары</h1>
-        <Link className="btn" href="/admin/products/new">Добавить</Link>
+    <div className="grid gap-4">
+      <div className="flex justify-between items-center">
+        <h1 className="text-2xl font-semibold">Товары</h1>
+        <a href="/admin/products/new" className="bg-blue-600 text-white rounded px-3 py-2">Добавить</a>
       </div>
-
-      <div className="mt-6 overflow-x-auto">
-        <table className="min-w-full text-sm">
-          <thead className="text-left text-slate-500">
-            <tr><th className="py-2 pr-4">Название</th><th className="py-2 pr-4">SKU</th><th className="py-2 pr-4">Цена</th><th className="py-2 pr-4">Наличие</th><th/></tr>
-          </thead>
-          <tbody>
-            {items.map(p=>(
-              <tr key={p.id} className="border-t">
-                <td className="py-2 pr-4">{p.title}</td>
-                <td className="py-2 pr-4">{p.sku}</td>
-                <td className="py-2 pr-4">{price(p.price)} ₽</td>
-                <td className="py-2 pr-4">{p.inStock?"Да":"Нет"}</td>
-                <td className="py-2 text-right">
-                  <Link className="underline mr-3" href={`/admin/products/${p.id}/edit`}>Редактировать</Link>
-                  <form action="/api/products/delete" method="POST" className="inline">
-                    <input type="hidden" name="id" value={p.id}/>
-                    <button className="text-red-600 underline">Удалить</button>
-                  </form>
-                </td>
-              </tr>
-            ))}
-            {items.length===0 && (<tr><td className="py-6 text-slate-600" colSpan={5}>Пока пусто. Нажми «Добавить».</td></tr>)}
-          </tbody>
-        </table>
+      <div className="divide-y">
+        {items.map(p=>(
+          <div key={p.id} className="py-3 flex items-center gap-3">
+            <div className="w-24">{p.image_url && <img src={p.image_url} className="rounded"/>}</div>
+            <div className="flex-1">
+              <div className="font-medium">{p.title}</div>
+              <div className="text-sm text-slate-500">{p.price.toLocaleString("ru-RU")} ₽</div>
+            </div>
+            <a className="underline" href={`/admin/products/${p.id}/edit`}>Редактировать</a>
+            <form action="/api/products/delete" method="POST"
+              onSubmit={(e)=>{ if(!confirm("Удалить?")) e.preventDefault(); }}>
+              <input type="hidden" name="csrf" value={csrf}/>
+              <input type="hidden" name="id" value={p.id}/>
+              <button className="text-red-600 underline">Удалить</button>
+            </form>
+          </div>
+        ))}
       </div>
-    </section>
+      <form action="/api/auth/logout" method="POST">
+        <button className="text-slate-600 underline">Выйти</button>
+      </form>
+    </div>
   );
 }
