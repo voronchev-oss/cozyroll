@@ -19,8 +19,8 @@ export type Product = {
   material: string | null;
   color: string | null;
 
-  // camelCase в коде ←→ snake_case в БД
-  // В БД: pile_height_mm, roll_width_mm
+  // В коде camelCase, в БД snake_case
+  // В БД колонки: pile_height_mm, roll_width_mm
   pileHeight: number | null;
   widthMm: number | null;
 
@@ -57,7 +57,7 @@ function mapRow(r: any): Product {
     material: r.material,
     color: r.color,
 
-    // поддерживаем оба варианта на всякий случай
+    // поддерживаем оба варианта названий на всякий случай
     pileHeight: r.pile_height_mm ?? r.pile_height ?? null,
     widthMm: r.roll_width_mm ?? r.width_mm ?? null,
 
@@ -66,8 +66,55 @@ function mapRow(r: any): Product {
   };
 }
 
-export async function listProducts(): Promise<Product[]> {
-  const { rows } = await q(`SELECT * FROM products ORDER BY created_at DESC`);
+/** Фильтры для каталога */
+export type ListFilters = {
+  q?: string;
+  color?: string;
+  material?: string;
+  inStock?: boolean;
+};
+
+/** Список товаров с опциональными фильтрами */
+export async function listProducts(filters: ListFilters = {}): Promise<Product[]> {
+  const where: string[] = [];
+  const args: any[] = [];
+
+  const add = (cond: string, val?: any) => {
+    if (val === undefined) return;
+    args.push(val);
+    where.push(cond.replace(/\$(\?)/g, `$${args.length}`)); // не используется, просто страховка
+  };
+
+  // Поиск по названию/артикулу/описанию (ILIKE)
+  if (filters.q && filters.q.trim()) {
+    const val = `%${filters.q.trim()}%`;
+    where.push(
+      `(title ILIKE $${args.length + 1} OR sku ILIKE $${args.length + 1} OR description ILIKE $${args.length + 1})`
+    );
+    args.push(val);
+  }
+
+  // Фасеты
+  if (filters.color && filters.color.trim()) {
+    where.push(`color = $${args.length + 1}`);
+    args.push(filters.color.trim());
+  }
+  if (filters.material && filters.material.trim()) {
+    where.push(`material = $${args.length + 1}`);
+    args.push(filters.material.trim());
+  }
+
+  // Наличие
+  if (filters.inStock) {
+    where.push(`in_stock = true`);
+  }
+
+  const sql =
+    `SELECT * FROM products` +
+    (where.length ? ` WHERE ${where.join(" AND ")}` : "") +
+    ` ORDER BY created_at DESC`;
+
+  const { rows } = await q(sql, args);
   return rows.map(mapRow);
 }
 
@@ -76,7 +123,7 @@ export async function getProduct(id: string): Promise<Product | null> {
   return rows[0] ? mapRow(rows[0]) : null;
 }
 
-/** Создание товара — ВАЖНО: пишем в pile_height_mm и roll_width_mm */
+/** Создание товара — пишем в pile_height_mm и roll_width_mm */
 export async function createProduct(data: Partial<Product>): Promise<string> {
   const sql = `
     INSERT INTO products (
@@ -96,8 +143,8 @@ export async function createProduct(data: Partial<Product>): Promise<string> {
     data.imageUrl ?? null,
     data.material ?? null,
     data.color ?? null,
-    data.pileHeight ?? null, // ← в БД колонка pile_height_mm
-    data.widthMm ?? null,    // ← в БД колонка roll_width_mm
+    data.pileHeight ?? null, // ← pile_height_mm
+    data.widthMm ?? null, // ← roll_width_mm
   ];
   const { rows } = await q<{ id: string }>(sql, args);
   return rows[0].id; // UUID строка
@@ -135,7 +182,7 @@ export async function updateProduct(
     data.material ?? null,
     data.color ?? null,
     data.pileHeight ?? null, // ← pile_height_mm
-    data.widthMm ?? null,    // ← roll_width_mm
+    data.widthMm ?? null, // ← roll_width_mm
     id,
   ];
   const { rows } = await q(sql, args);
