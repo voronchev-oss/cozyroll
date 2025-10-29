@@ -3,20 +3,25 @@ export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
 import { updateProduct } from "@/lib/db";
-import { requireAdmin } from "@/lib/api-guard";
+import { requireAdmin, requireCsrf } from "@/lib/api-guard";
 
-// ВАЖНО: params — Promise в Next.js 16
+// В Next.js 16 params — это Promise
 export async function POST(
   req: NextRequest,
   ctx: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await ctx.params;
-
-  // охрана админки (принимает Request/NextRequest)
+  // 1) охрана (не читает body)
   const guard = await requireAdmin(req);
   if (guard) return guard;
 
+  // 2) читаем тело ОДИН раз
   const fd = await req.formData();
+
+  // 3) CSRF по уже прочитанной форме + req для cookie
+  const csrfRes = await requireCsrf(fd, req);
+  if (csrfRes) return csrfRes;
+
+  const { id } = await ctx.params;
 
   const str = (k: string) => {
     const v = fd.get(k);
@@ -25,7 +30,7 @@ export async function POST(
   };
   const num = (k: string) => {
     const v = fd.get(k);
-    const s = v == null ? "" : String(v).trim();
+    const s = v == null ? "" : String(v).replace(/\s+/g, "").trim();
     return s.length ? Number(s) : null;
   };
 
@@ -41,8 +46,6 @@ export async function POST(
     widthMm: num("widthMm"),
   });
 
-  // после сохранения — назад в список
-  return NextResponse.redirect(new URL("/admin/products", req.url), {
-    status: 303,
-  });
+  // 4) редирект назад в список (или оставаться на edit — как хочешь)
+  return NextResponse.redirect(new URL("/admin/products", req.url), { status: 303 });
 }
