@@ -59,8 +59,45 @@ function mapRow(r: any): Product {
   };
 }
 
-export async function listProducts(): Promise<Product[]> {
-  const { rows } = await q(`SELECT * FROM products ORDER BY created_at DESC`);
+/** Список товаров с фильтрами (опционально) */
+export async function listProducts(filters?: {
+  q?: string;        // поиск по названию/описанию/sku/цвету/материалу
+  color?: string;    // точное совпадение цвета
+  material?: string; // точное совпадение материала
+  inStock?: boolean; // только в наличии / только нет
+}): Promise<Product[]> {
+  const where: string[] = [];
+  const args: any[] = [];
+
+  if (filters?.q) {
+    args.push(`%${filters.q}%`);
+    const a = `$${args.length}`;
+    where.push(
+      `(title ILIKE ${a} OR description ILIKE ${a} OR sku ILIKE ${a} OR color ILIKE ${a} OR material ILIKE ${a})`
+    );
+  }
+
+  if (filters?.color) {
+    args.push(filters.color);
+    where.push(`color = $${args.length}`);
+  }
+
+  if (filters?.material) {
+    args.push(filters.material);
+    where.push(`material = $${args.length}`);
+  }
+
+  if (typeof filters?.inStock === "boolean") {
+    args.push(!!filters.inStock);
+    where.push(`in_stock = $${args.length}`);
+  }
+
+  const sql =
+    `SELECT * FROM products` +
+    (where.length ? ` WHERE ${where.join(" AND ")}` : ``) +
+    ` ORDER BY created_at DESC`;
+
+  const { rows } = await q(sql, args);
   return rows.map(mapRow);
 }
 
@@ -69,7 +106,7 @@ export async function getProduct(id: string): Promise<Product | null> {
   return rows[0] ? mapRow(rows[0]) : null;
 }
 
-/** ВОЗВРАЩАЕТ СТРОКУ id */
+/** СОЗДАНИЕ: возвращает строковый id (uuid) */
 export async function createProduct(data: Partial<Product>): Promise<string> {
   const sql = `
     INSERT INTO products (
