@@ -23,7 +23,7 @@ export async function POST(
   const getStr = (k: string) => {
     const v = fd.get(k);
     return v ? String(v).trim() : null;
-    };
+  };
   const getNum = (k: string) => {
     const v = fd.get(k);
     if (v == null || String(v).trim() === "") return null;
