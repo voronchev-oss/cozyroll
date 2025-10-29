@@ -4,16 +4,14 @@ import { headers } from "next/headers";
 
 export const runtime = "nodejs";
 
-// ожидаем ReadonlyHeaders (а не Headers)
-function pickCsrfFromHeaders(h: ReadonlyHeaders) {
+export default async function NewProduct() {
+  // В Next 16 headers() → Promise → нужен await
+  const h = await headers();
+
+  // Достаём CSRF-токен из cookie (как строку)
   const raw = h.get("cookie") || "";
   const m = raw.match(/cozyroll_csrf=([^;]+)/);
-  return m ? decodeURIComponent(m[1]) : "";
-}
-
-export default async function NewProduct() {   // <— ВАЖНО: async
-  const h = await headers();                   // <— ВАЖНО: await
-  const csrf = pickCsrfFromHeaders(h);
+  const csrf = m ? decodeURIComponent(m[1]) : "";
 
   return (
     <div className="grid gap-6 max-w-xl">
@@ -23,6 +21,7 @@ export default async function NewProduct() {   // <— ВАЖНО: async
       </div>
 
       <form action="/api/products" method="POST" className="grid gap-4">
+        {/* CSRF — обязателен */}
         <input type="hidden" name="csrf" value={csrf} />
 
         <label className="grid gap-1">
@@ -85,4 +84,3 @@ export default async function NewProduct() {   // <— ВАЖНО: async
     </div>
   );
 }
-
