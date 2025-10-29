@@ -1,3 +1,4 @@
+// src/app/api/products/route.ts
 import { NextResponse } from "next/server";
 import { listProducts, createProduct } from "@/lib/db";
 import { requireAdmin, requireCsrf } from "@/lib/api-guard";
@@ -14,19 +15,26 @@ export async function POST(req: Request) {
   if (auth) return auth;
 
   const fd = await req.formData();
-  const csrf = await requireCsrf(fd);
-  if (csrf) return csrf;
+  const csrfRes = await requireCsrf(fd);
+  if (csrfRes) return csrfRes;
 
   const body = {
     sku: String(fd.get("sku") || ""),
     title: String(fd.get("title") || "Без названия"),
     description: fd.get("description") ? String(fd.get("description")) : null,
     price: Math.round(Number(fd.get("price") || 0)),
-    currency: "RUB",
+    currency: "RUB" as const,
     inStock: !!fd.get("inStock"),
+    imageUrl: fd.get("imageUrl") ? String(fd.get("imageUrl")) : null,
+    material: fd.get("material") ? String(fd.get("material")) : null,
+    color: fd.get("color") ? String(fd.get("color")) : null,
+    pileHeight: fd.get("pileHeight") ? Number(fd.get("pileHeight")) : null,
+    widthMm: fd.get("widthMm") ? Number(fd.get("widthMm")) : null,
   };
 
-  const id = await createProduct(body);
-  return NextResponse.redirect(new URL(`/admin/products/${id}/edit`, req.url));
+  const newId = await createProduct(body); // ← СТРОКА
+  const url = new URL(`/admin/products/${encodeURIComponent(newId)}/edit`, req.url);
+  return NextResponse.redirect(url);
 }
+
 
