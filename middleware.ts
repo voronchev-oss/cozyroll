@@ -1,16 +1,16 @@
 // middleware.ts
 import { NextRequest, NextResponse } from "next/server";
-import { randomUUID } from "crypto";
 
 export function middleware(req: NextRequest) {
-  const { pathname } = req.nextUrl;
   const res = NextResponse.next();
 
-  // Ставим CSRF-cookie при любом GET в админке
-  if (pathname.startsWith("/admin") && req.method === "GET") {
-    const has = req.cookies.get("cozyroll_csrf");
-    if (!has) {
-      res.cookies.set("cozyroll_csrf", randomUUID(), {
+  // На любой GET к /admin/* ставим CSRF-куку, если её нет
+  if (req.nextUrl.pathname.startsWith("/admin") && req.method === "GET") {
+    if (!req.cookies.get("cozyroll_csrf")) {
+      const token =
+        globalThis.crypto?.randomUUID?.() ??
+        Math.random().toString(36).slice(2); // запасной вариант
+      res.cookies.set("cozyroll_csrf", token, {
         httpOnly: true,
         sameSite: "lax",
         secure: process.env.NODE_ENV === "production",
@@ -23,7 +23,7 @@ export function middleware(req: NextRequest) {
   return res;
 }
 
-// Работает только на админских страницах
+// Middleware должен лежать в корне и матчить админку
 export const config = {
   matcher: ["/admin/:path*"],
 };
