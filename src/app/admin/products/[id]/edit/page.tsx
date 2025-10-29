@@ -6,11 +6,22 @@ import Link from "next/link";
 export const runtime = "nodejs";
 export const revalidate = 0;
 
+// простая проверка что это UUID v4 (чтобы не ходить в БД с мусором)
+const UUIDv4 =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 export default async function AdminEditProductPage({
   params,
-}: { params: { id: string } }) {
-  const id = decodeURIComponent(params.id);
-  const p = await getProduct(id);
+}: {
+  // В Next 16 params — Promise
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;                 // ← вот этого раньше не было
+  const pid = decodeURIComponent(id || "");
+
+  if (!UUIDv4.test(pid)) return notFound();
+
+  const p = await getProduct(pid);
   if (!p) return notFound();
 
   return (
@@ -22,8 +33,7 @@ export default async function AdminEditProductPage({
         </Link>
       </div>
 
-      {/* Здесь позже можно вернуть полноценную форму редактирования.
-          Пока просто показываем ID, чтобы страница точно рендерилась. */}
+      {/* здесь позже вернём полноценную форму; сейчас просто выводим ID */}
       <div className="rounded border p-4 text-sm">
         <div className="text-muted-foreground">ID: {p.id}</div>
       </div>
