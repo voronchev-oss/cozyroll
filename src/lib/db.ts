@@ -2,7 +2,9 @@
 import { Pool, QueryResultRow } from "pg";
 
 if (!process.env.DATABASE_URL) {
-  throw new Error("DATABASE_URL не задан. Проверь .env.local и Vercel → Settings → Environment Variables");
+  throw new Error(
+    "DATABASE_URL не задан. Проверь .env.local и Vercel → Settings → Environment Variables"
+  );
 }
 
 export type Product = {
@@ -70,7 +72,10 @@ export async function getProduct(id: string): Promise<Product | null> {
 /** ВОЗВРАЩАЕТ СТРОКУ id */
 export async function createProduct(data: Partial<Product>): Promise<string> {
   const sql = `
-    INSERT INTO products (sku, title, description, price, currency, in_stock, image_url, material, color, pile_height, roll_width_mm)
+    INSERT INTO products (
+      sku, title, description, price, currency, in_stock,
+      image_url, material, color, pile_height, roll_width_mm
+    )
     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
     RETURNING id
   `;
@@ -88,15 +93,27 @@ export async function createProduct(data: Partial<Product>): Promise<string> {
     data.widthMm ?? null,
   ];
   const { rows } = await q<{ id: string }>(sql, args);
-  return rows[0].id; // ВАЖНО: строка
+  return rows[0].id; // строка UUID
 }
 
-export async function updateProduct(id: string, data: Partial<Product>): Promise<Product> {
+export async function updateProduct(
+  id: string,
+  data: Partial<Product>
+): Promise<Product> {
   const sql = `
     UPDATE products SET
-      sku = $1, title = $2, description = $3, price = $4, currency = $5,
-      in_stock = $6, image_url = $7, material = $8, color = $9,
-      pile_height = $10, roll_width_mm = $11, updated_at = now()
+      sku = $1,
+      title = $2,
+      description = $3,
+      price = $4,
+      currency = $5,
+      in_stock = $6,
+      image_url = $7,
+      material = $8,
+      color = $9,
+      pile_height = $10,
+      roll_width_mm = $11,
+      updated_at = now()
     WHERE id = $12
     RETURNING *
   `;
@@ -120,4 +137,26 @@ export async function updateProduct(id: string, data: Partial<Product>): Promise
 
 export async function deleteProduct(id: string): Promise<void> {
   await q(`DELETE FROM products WHERE id = $1`, [id]);
+}
+
+/** Значения для фильтров каталога (цвета, материалы) */
+export async function facetValues(): Promise<{ colors: string[]; materials: string[] }> {
+  const res = await q<any>(`SELECT color, material FROM products`);
+  const colors = Array.from(
+    new Set(
+      res.rows
+        .map((r: any) => r.color)
+        .filter((v: any): v is string => typeof v === "string" && v.trim().length > 0)
+    )
+  ).sort((a, b) => a.localeCompare(b, "ru"));
+
+  const materials = Array.from(
+    new Set(
+      res.rows
+        .map((r: any) => r.material)
+        .filter((v: any): v is string => typeof v === "string" && v.trim().length > 0)
+    )
+  ).sort((a, b) => a.localeCompare(b, "ru"));
+
+  return { colors, materials };
 }
