@@ -4,32 +4,34 @@ import { requireAdmin, requireCsrf } from "@/lib/api-guard";
 export const runtime = "nodejs";
 
 export async function GET() {
-  const list = await listProducts();
-  return NextResponse.json(list);
+  const items = await listProducts();
+  return NextResponse.json(items);
 }
 
 export async function POST(req: Request) {
-  const guard = await requireAdmin(req);
-  if (guard) return guard;
+  const unauth = await requireAdmin(req);
+  if (unauth) return unauth;
 
   const fd = await req.formData();
   if (!requireCsrf(req, fd)) {
-    return NextResponse.json({ error: "bad csrf" }, { status: 403 });
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const data = {
-    sku: String(fd.get("sku") || "") || null,
-    title: String(fd.get("title") || "Без названия"),
+  const b = {
+    sku: String(fd.get("sku") || ""),
+    title: String(fd.get("title") || ""),
     description: fd.get("description") ? String(fd.get("description")) : null,
     price: Math.round(Number(fd.get("price") || 0)),
-    in_stock: !!fd.get("inStock"),
-    width_mm: fd.get("widthMm") ? Number(fd.get("widthMm")) : null,
-    pile_height: fd.get("pileHeight") ? Number(fd.get("pileHeight")) : null,
+    currency: "RUB",
+    inStock: !!fd.get("inStock"),
+    widthMm: fd.get("widthMm") != null ? Number(fd.get("widthMm")) : null,
+    pileHeight: fd.get("pileHeight") != null ? Number(fd.get("pileHeight")) : null,
     material: fd.get("material") ? String(fd.get("material")) : null,
     color: fd.get("color") ? String(fd.get("color")) : null,
-    image_url: fd.get("imageUrl") ? String(fd.get("imageUrl")) : null,
-  };
+    imageUrl: fd.get("imageUrl") ? String(fd.get("imageUrl")) : null,
+  } as const;
 
-  const created = await createProduct(data);
-  return NextResponse.json(created, { status: 201 });
+  const id = await createProduct(b);
+  return NextResponse.json({ ok: true, id }, { status: 201 });
 }
+

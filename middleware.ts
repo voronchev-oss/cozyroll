@@ -1,25 +1,29 @@
-import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
+// middleware.ts
+import { NextRequest, NextResponse } from "next/server";
+import { randomUUID } from "crypto";
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
+  const res = NextResponse.next();
 
-  // /admin/login доступен без авторизации
-  if (pathname.startsWith("/admin/login")) return NextResponse.next();
-
-  // Всё остальное под /admin/* — только с кукой
-  const isAuthed = req.cookies.get("cozyroll_auth")?.value === "admin";
-  if (pathname.startsWith("/admin") && !isAuthed) {
-    const url = req.nextUrl.clone();
-    url.pathname = "/admin/login";
-    url.search = ""; // на всякий случай
-    return NextResponse.redirect(url, 302);
+  // Ставим CSRF-cookie при любом GET в админке
+  if (pathname.startsWith("/admin") && req.method === "GET") {
+    const has = req.cookies.get("cozyroll_csrf");
+    if (!has) {
+      res.cookies.set("cozyroll_csrf", randomUUID(), {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+        path: "/",
+        maxAge: 60 * 60 * 24 * 7, // 7 дней
+      });
+    }
   }
 
-  return NextResponse.next();
+  return res;
 }
 
-// применяем только к /admin/*
+// Работает только на админских страницах
 export const config = {
   matcher: ["/admin/:path*"],
 };
