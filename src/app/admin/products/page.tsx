@@ -5,24 +5,23 @@ import { listProducts } from "@/lib/db";
 
 export const runtime = "nodejs";
 
-const priceFmt = (n: number) => new Intl.NumberFormat("ru-RU").format(n);
-
-function pickCsrfFromHeaders(h: Headers) {
-  const raw = h.get("cookie") || "";
-  const m = raw.match(/cozyroll_csrf=([^;]+)/);
-  return m ? decodeURIComponent(m[1]) : "";
-}
+const fmt = (n: number) => new Intl.NumberFormat("ru-RU").format(n);
 
 export default async function AdminProducts() {
-  const h = headers();
-  const csrf = pickCsrfFromHeaders(h);
+  // В Next 16 headers() -> Promise, поэтому ждём:
+  const h = await headers();
+  // Достаём CSRF-токен из cookie
+  const raw = h.get("cookie") || "";
+  const m = raw.match(/cozyroll_csrf=([^;]+)/);
+  const csrf = m ? decodeURIComponent(m[1]) : "";
+
   const items = await listProducts();
 
   return (
     <div className="grid gap-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Товары</h1>
-        <Link href="/admin/products/new" className="btn-primary">
+        <Link href="/admin/products/new" className="bg-blue-600 text-white rounded px-4 py-2">
           Добавить
         </Link>
       </div>
@@ -33,7 +32,7 @@ export default async function AdminProducts() {
             <tr className="text-left">
               <th className="p-2">Название</th>
               <th className="p-2">Цена</th>
-              <th className="p-2">Статус</th>
+              <th className="p-2">Наличие</th>
               <th className="p-2" />
             </tr>
           </thead>
@@ -41,22 +40,29 @@ export default async function AdminProducts() {
             {items.map((p) => (
               <tr key={p.id} className="border-t">
                 <td className="p-2">{p.title}</td>
-                <td className="p-2">{priceFmt(p.price || 0)} ₽</td>
-                <td className="p-2">{p.inStock ? "В наличии" : "Нет"}</td>
+                <td className="p-2">{fmt(p.price || 0)} ₽</td>
+                <td className="p-2">{p.in_stock ? "В наличии" : "Нет"}</td>
                 <td className="p-2">
                   <div className="flex gap-2">
-                    <Link href={`/admin/products/${p.id}/edit`} className="btn">
+                    <Link href={`/admin/products/${p.id}/edit`} className="px-3 py-1 border rounded">
                       Редактировать
                     </Link>
                     <form action="/api/products/delete" method="POST">
                       <input type="hidden" name="csrf" value={csrf} />
                       <input type="hidden" name="id" value={p.id} />
-                      <button className="btn-danger">Удалить</button>
+                      <button className="px-3 py-1 border rounded text-red-600">Удалить</button>
                     </form>
                   </div>
                 </td>
               </tr>
             ))}
+            {items.length === 0 && (
+              <tr>
+                <td className="p-4 text-slate-500" colSpan={4}>
+                  Товаров пока нет.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
