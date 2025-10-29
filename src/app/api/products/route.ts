@@ -5,20 +5,20 @@ import { requireAdmin, requireCsrf } from "@/lib/api-guard";
 
 export const runtime = "nodejs";
 
-// Список товаров (для админки/каталога по умолчанию без фильтров)
+// Список товаров
 export async function GET() {
   const items = await listProducts();
   return NextResponse.json({ ok: true, items });
 }
 
 // Создание ИЛИ обновление товара одной формой.
-// Если пришёл hidden input name="id" → это UPDATE, иначе CREATE.
+// Если пришёл hidden input name="id" → UPDATE, иначе CREATE.
 export async function POST(req: Request) {
   // 1) охрана
-  const guard = await requireAdmin(req);
+  const guard = await requireAdmin(); // <— без аргументов
   if (guard) return guard;
 
-  const csrfCheck = await requireCsrf(req);
+  const csrfCheck = await requireCsrf(req); // <— здесь аргумент нужен
   if (csrfCheck) return csrfCheck;
 
   // 2) читаем форму
@@ -56,17 +56,9 @@ export async function POST(req: Request) {
 
   if (id) {
     await updateProduct(id, payload);
-    // после обновления — остаёмся на edit
-    return NextResponse.redirect(
-      new URL(`/admin/products/${id}/edit`, req.url),
-      303
-    );
+    return NextResponse.redirect(new URL(`/admin/products/${id}/edit`, req.url), 303);
   } else {
     const newId = await createProduct(payload);
-    // после создания — на edit новой карточки
-    return NextResponse.redirect(
-      new URL(`/admin/products/${newId}/edit`, req.url),
-      303
-    );
+    return NextResponse.redirect(new URL(`/admin/products/${newId}/edit`, req.url), 303);
   }
 }
