@@ -1,64 +1,40 @@
 // src/app/api/products/route.ts
-import { NextResponse } from "next/server";
-import { createProduct, updateProduct, listProducts } from "@/lib/db";
-import { requireAdmin, requireCsrf } from "@/lib/api-guard";
-
 export const runtime = "nodejs";
 
-// Список товаров
-export async function GET() {
-  const items = await listProducts();
-  return NextResponse.json({ ok: true, items });
-}
+import { NextResponse } from "next/server";
+import { createProduct } from "@/lib/db";
+import { requireAdmin, requireCsrf } from "@/lib/api-guard";
 
-// Создание/обновление товара
 export async function POST(req: Request) {
-  // 1) охрана
-  const guard = await requireAdmin(); // без аргументов
+  const guard = await requireAdmin(req);
   if (guard) return guard;
 
-  // 2) читаем форму
+  const csrfRes = await requireCsrf(req);
+  if (csrfRes) return csrfRes;
+
   const fd = await req.formData();
-
-  // 3) проверяем CSRF (эта функция ожидает FormData)
-  const csrfCheck = await requireCsrf(fd);
-  if (csrfCheck) return csrfCheck;
-
-  // 4) парсинг полей
   const getStr = (k: string) => {
     const v = fd.get(k);
-    return v != null && String(v).trim() !== "" ? String(v).trim() : null;
-  };
+    return v != null && String(v).trim() !== "" ? String(v) : null;
+    };
   const getNum = (k: string) => {
     const v = fd.get(k);
-    if (v == null || String(v).trim() === "") return null;
-    const n = Number(String(v).replace(/\s/g, "").replace(",", "."));
-    return Number.isFinite(n) ? n : null;
+    return v != null && String(v).trim() !== "" ? Math.round(Number(v)) : null;
   };
 
-  const priceRub = getNum("price");
-  const priceCents = priceRub != null ? Math.round(priceRub) * 100 : 0;
-
-  const payload = {
+  const id = await createProduct({
+    title: getStr("title") ?? "Без названия",
     sku: getStr("sku"),
-    title: getStr("title") || "Без названия",
     description: getStr("description"),
-    price: priceCents,
-    inStock: fd.get("inStock") ? true : false,
+    price: getNum("price") ?? 0,
+    currency: "RUB",
+    inStock: fd.get("inStock") != null,
     imageUrl: getStr("imageUrl"),
     material: getStr("material"),
     color: getStr("color"),
-    pileHeight: getNum("pileHeight"),
-    widthMm: getNum("widthMm"),
-  };
+    pileHeight: getNum("pileHeightMm"),
+    widthMm: getNum("rollWidthMm"),
+  });
 
-  const id = getStr("id");
-
-  if (id) {
-    await updateProduct(id, payload);
-    return NextResponse.redirect(new URL(`/admin/products/${id}/edit`, req.url), 303);
-  } else {
-    const newId = await createProduct(payload);
-    return NextResponse.redirect(new URL(`/admin/products/${newId}/edit`, req.url), 303);
-  }
+  return NextResponse.redirect(new URL(`/admin/products/${id}/edit`, req.url), 303);
 }

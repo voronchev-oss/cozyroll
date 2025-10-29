@@ -1,72 +1,59 @@
 // src/app/admin/products/page.tsx
-import Link from "next/link";
-import { listProducts } from "@/lib/db";
-
 export const runtime = "nodejs";
 export const revalidate = 0;
 
-const price = (rub: number) =>
-  new Intl.NumberFormat("ru-RU").format(Math.round((rub || 0) / 100));
+import Link from "next/link";
+import { headers } from "next/headers";
+import { listProducts } from "@/lib/db";
+import { pickCsrfFromHeaders } from "@/lib/api-guard";
+
+const price = (n: number) => new Intl.NumberFormat("ru-RU").format(n);
 
 export default async function AdminProducts() {
+  const h = await headers();
+  const csrf = pickCsrfFromHeaders(h as any);
   const items = await listProducts();
 
   return (
-    <div className="grid gap-4">
+    <div className="grid gap-4 p-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-semibold">Товары</h1>
-        <Link
-          href="/admin/products/new"
-          className="px-3 py-1 rounded bg-blue-600 text-white"
-        >
-          + Новый товар
+        <Link className="px-3 py-2 rounded bg-blue-600 text-white" href="/admin/products/new">
+          Новый товар
         </Link>
       </div>
 
-      <div className="overflow-x-auto rounded border">
-        <table className="min-w-full text-sm">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="text-left p-2">Название</th>
-              <th className="text-left p-2">Цена</th>
-              <th className="text-left p-2">Наличие</th>
-              <th className="text-left p-2 w-48">Действия</th>
+      <table className="min-w-full border text-sm">
+        <thead>
+          <tr className="bg-gray-100">
+            <th className="p-2 text-left">Название</th>
+            <th className="p-2 text-left">Цена</th>
+            <th className="p-2 text-left">Наличие</th>
+            <th className="p-2 text-left">Действия</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((p) => (
+            <tr key={p.id} className="border-t">
+              <td className="p-2">{p.title}</td>
+              <td className="p-2">{price(p.price)} ₽</td>
+              <td className="p-2">{p.inStock ? "В наличии" : "Нет"}</td>
+              <td className="p-2">
+                <div className="flex gap-2">
+                  <Link className="px-3 py-1 border rounded" href={`/admin/products/${p.id}/edit`}>
+                    Редактировать
+                  </Link>
+                  <form action="/api/products/delete" method="POST">
+                    <input type="hidden" name="id" value={p.id} />
+                    <input type="hidden" name="csrf" value={csrf} />
+                    <button className="px-3 py-1 border rounded">Удалить</button>
+                  </form>
+                </div>
+              </td>
             </tr>
-          </thead>
-          <tbody>
-            {items.map((p) => (
-              <tr key={p.id} className="border-t">
-                <td className="p-2">{p.title}</td>
-                <td className="p-2">{price(p.price)} ₽</td>
-                <td className="p-2">{p.inStock ? "В наличии" : "Нет"}</td>
-                <td className="p-2">
-                  <div className="flex gap-2">
-                    <Link
-                      href={`/admin/products/${p.id}/edit`}
-                      className="px-3 py-1 border rounded hover:bg-gray-50"
-                    >
-                      Редактировать
-                    </Link>
-                    <form action="/api/products/delete" method="POST">
-                      <input type="hidden" name="id" value={p.id} />
-                      <button className="px-3 py-1 border rounded hover:bg-red-50">
-                        Удалить
-                      </button>
-                    </form>
-                  </div>
-                </td>
-              </tr>
-            ))}
-            {items.length === 0 && (
-              <tr>
-                <td className="p-4 text-gray-500" colSpan={4}>
-                  Пусто. Добавьте первый товар.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
