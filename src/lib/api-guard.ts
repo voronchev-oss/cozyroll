@@ -1,38 +1,74 @@
 // src/lib/api-guard.ts
-import { cookies, headers } from "next/headers";
+export const runtime = "nodejs";
+
 import { NextResponse } from "next/server";
 
-/** Имена куки */
-export const AUTH_COOKIE_NAME = "cozyroll_auth"; // значение "admin" = вошёл
+/** Имя cookie с сессией админа (ставится в /api/auth/login) */
+export const AUTH_COOKIE_NAME = "cozyroll_auth";
+/** Имя cookie с CSRF-токеном (ставится в middleware) */
 export const CSRF_COOKIE_NAME = "cozyroll_csrf";
 
-/** Проверка админской "сессии" (простой режим через куку cozyroll_auth=admin) */
-export async function requireAdmin(): Promise<Response | null> {
-  const c = await cookies();
-  const val = c.get(AUTH_COOKIE_NAME)?.value;
-  if (val !== "admin") {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  }
-  return null;
+/** Простейшая проверка «сессии админа». В логине кладём строку 'admin' — её и ждём. */
+export async function verifySession(cookieValue?: string): Promise<boolean> {
+  return cookieValue === "admin";
 }
 
-/** Достаём CSRF-токен из заголовков (cookie) — удобно в серверных компонентах/страницах */
-export function pickCsrfFromHeaders(h: { get(name: string): string | null }): string {
-  const raw = h.get("cookie") || "";
-  const m = raw.match(/(?:^|;\s*)cozyroll_csrf=([^;]+)/);
+/** Достаём строку cookie по имени из Request (или из заголовков, если Request не передали) */
+function getCookie(name: string, req?: Request): string | undefined {
+  const raw = (req?.headers?.get("cookie") || "") as string;
+  if (!raw) return undefined;
+  const m = raw.match(new RegExp(`${name}=([^;]+)`));
+  return m ? decodeURIComponent(m[1]) : undefined;
+}
+
+/**
+ * Охрана админ-маршрутов.
+ * Параметр request ДЕЛАЕМ НЕОБЯЗАТЕЛЬНЫМ — тогда код будет компилироваться и
+ * с вызовами requireAdmin() и с requireAdmin(req).
+ */
+export async function requireAdmin(req?: Request) {
+  const cookie = getCookie(AUTH_COOKIE_NAME, req);
+  if (!cookie) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+  const ok = await verifySession(cookie);
+  if (!ok) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+  return null as const;
+}
+
+/** Достаём CSRF-токен из заголовков (cookie) — для серверных страниц */
+export function pickCsrfFromHeaders(
+  h: Headers | Readonly<Headers> | ReadonlyHeaders | any
+): string {
+  const raw = typeof h?.get === "function" ? h.get("cookie") || "" : "";
+  const m = raw.match(/cozyroll_csrf=([^;]+)/);
   return m ? decodeURIComponent(m[1]) : "";
 }
 
-/** Проверяем CSRF в POST: сравниваем hidden field "csrf" с cookie cozyroll_csrf */
-export async function requireCsrf(formData: FormData): Promise<Response | null> {
-  const c = await cookies();
-  const cookieToken = c.get(CSRF_COOKIE_NAME)?.value || "";
+/**
+ * ВАЛИДАЦИЯ CSRF.
+ * Можно передать либо Request (тогда сами прочитаем formData и cookie),
+ * либо уже готовый FormData (тогда cookie возьмём из второго аргумента Request).
+ */
+export async function requireCsrf(reqOrFd: Request | FormData, reqIfFd?: Request) {
+  let fd: FormData;
+  let req: Request | undefined;
 
-  // Токен из формы
-  const bodyToken = String(formData.get("csrf") || "");
-
-  if (!cookieToken || !bodyToken || cookieToken !== bodyToken) {
-    return NextResponse.json({ error: "csrf_invalid" }, { status: 403 });
+  if (typeof (reqOrFd as any).formData === "function") {
+    req = reqOrFd as Request;
+    fd = await req.formData();
+  } else {
+    fd = reqOrFd as FormData;
+    req = reqIfFd;
   }
-  return null;
+
+  const tokenFromForm = String(fd.get("csrf") || "");
+  const tokenFromCookie = getCookie(CSRF_COOKIE_NAME, req) || "";
+
+  if (!tokenFromForm || !tokenFromCookie || tokenFromForm !== tokenFromCookie) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+  return null as const;
 }
