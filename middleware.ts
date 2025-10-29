@@ -1,29 +1,31 @@
 // middleware.ts
-import { NextRequest, NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
+
+const CSRF_COOKIE = "cozyroll_csrf";
 
 export function middleware(req: NextRequest) {
   const res = NextResponse.next();
 
-  // На любой GET к /admin/* ставим CSRF-куку, если её нет
-  if (req.nextUrl.pathname.startsWith("/admin") && req.method === "GET") {
-    if (!req.cookies.get("cozyroll_csrf")) {
-      const token =
-        globalThis.crypto?.randomUUID?.() ??
-        Math.random().toString(36).slice(2); // запасной вариант
-      res.cookies.set("cozyroll_csrf", token, {
-        httpOnly: true,
-        sameSite: "lax",
-        secure: process.env.NODE_ENV === "production",
-        path: "/",
-        maxAge: 60 * 60 * 24 * 7, // 7 дней
-      });
-    }
+  // Если CSRF-куки нет — устанавливаем один раз
+  const has = req.cookies.get(CSRF_COOKIE)?.value;
+  if (!has) {
+    // Простой токен (достаточно для форм-без-JS)
+    const token = crypto.randomUUID();
+    res.cookies.set({
+      name: CSRF_COOKIE,
+      value: token,
+      path: "/",
+      httpOnly: true,           // не нужен в JS, читаем на сервере из заголовков
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 60 * 60 * 24 * 7, // 7 дней
+    });
   }
-
   return res;
 }
 
-// Middleware должен лежать в корне и матчить админку
+// Ограничим работу middleware только нужными путями (включая /admin/* и формы)
 export const config = {
-  matcher: ["/admin/:path*"],
+  matcher: ["/((?!_next|favicon.ico|sitemap.xml|robots.txt).*)"],
 };
