@@ -18,8 +18,12 @@ export type Product = {
   imageUrl: string | null;
   material: string | null;
   color: string | null;
+
+  // camelCase в коде ←→ snake_case в БД
+  // В БД: pile_height_mm, roll_width_mm
   pileHeight: number | null;
   widthMm: number | null;
+
   created_at?: string;
   updated_at?: string;
 };
@@ -52,52 +56,18 @@ function mapRow(r: any): Product {
     imageUrl: r.image_url,
     material: r.material,
     color: r.color,
-    pileHeight: r.pile_height,
+
+    // поддерживаем оба варианта на всякий случай
+    pileHeight: r.pile_height_mm ?? r.pile_height ?? null,
     widthMm: r.roll_width_mm ?? r.width_mm ?? null,
+
     created_at: r.created_at,
     updated_at: r.updated_at,
   };
 }
 
-/** Список товаров с фильтрами (опционально) */
-export async function listProducts(filters?: {
-  q?: string;        // поиск по названию/описанию/sku/цвету/материалу
-  color?: string;    // точное совпадение цвета
-  material?: string; // точное совпадение материала
-  inStock?: boolean; // только в наличии / только нет
-}): Promise<Product[]> {
-  const where: string[] = [];
-  const args: any[] = [];
-
-  if (filters?.q) {
-    args.push(`%${filters.q}%`);
-    const a = `$${args.length}`;
-    where.push(
-      `(title ILIKE ${a} OR description ILIKE ${a} OR sku ILIKE ${a} OR color ILIKE ${a} OR material ILIKE ${a})`
-    );
-  }
-
-  if (filters?.color) {
-    args.push(filters.color);
-    where.push(`color = $${args.length}`);
-  }
-
-  if (filters?.material) {
-    args.push(filters.material);
-    where.push(`material = $${args.length}`);
-  }
-
-  if (typeof filters?.inStock === "boolean") {
-    args.push(!!filters.inStock);
-    where.push(`in_stock = $${args.length}`);
-  }
-
-  const sql =
-    `SELECT * FROM products` +
-    (where.length ? ` WHERE ${where.join(" AND ")}` : ``) +
-    ` ORDER BY created_at DESC`;
-
-  const { rows } = await q(sql, args);
+export async function listProducts(): Promise<Product[]> {
+  const { rows } = await q(`SELECT * FROM products ORDER BY created_at DESC`);
   return rows.map(mapRow);
 }
 
@@ -106,12 +76,12 @@ export async function getProduct(id: string): Promise<Product | null> {
   return rows[0] ? mapRow(rows[0]) : null;
 }
 
-/** СОЗДАНИЕ: возвращает строковый id (uuid) */
+/** Создание товара — ВАЖНО: пишем в pile_height_mm и roll_width_mm */
 export async function createProduct(data: Partial<Product>): Promise<string> {
   const sql = `
     INSERT INTO products (
       sku, title, description, price, currency, in_stock,
-      image_url, material, color, pile_height, roll_width_mm
+      image_url, material, color, pile_height_mm, roll_width_mm
     )
     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
     RETURNING id
@@ -126,11 +96,11 @@ export async function createProduct(data: Partial<Product>): Promise<string> {
     data.imageUrl ?? null,
     data.material ?? null,
     data.color ?? null,
-    data.pileHeight ?? null,
-    data.widthMm ?? null,
+    data.pileHeight ?? null, // ← в БД колонка pile_height_mm
+    data.widthMm ?? null,    // ← в БД колонка roll_width_mm
   ];
   const { rows } = await q<{ id: string }>(sql, args);
-  return rows[0].id; // строка UUID
+  return rows[0].id; // UUID строка
 }
 
 export async function updateProduct(
@@ -148,7 +118,7 @@ export async function updateProduct(
       image_url = $7,
       material = $8,
       color = $9,
-      pile_height = $10,
+      pile_height_mm = $10,
       roll_width_mm = $11,
       updated_at = now()
     WHERE id = $12
@@ -164,8 +134,8 @@ export async function updateProduct(
     data.imageUrl ?? null,
     data.material ?? null,
     data.color ?? null,
-    data.pileHeight ?? null,
-    data.widthMm ?? null,
+    data.pileHeight ?? null, // ← pile_height_mm
+    data.widthMm ?? null,    // ← roll_width_mm
     id,
   ];
   const { rows } = await q(sql, args);
@@ -178,22 +148,12 @@ export async function deleteProduct(id: string): Promise<void> {
 
 /** Значения для фильтров каталога (цвета, материалы) */
 export async function facetValues(): Promise<{ colors: string[]; materials: string[] }> {
-  const res = await q<any>(`SELECT color, material FROM products`);
+  const { rows } = await q<any>(`SELECT color, material FROM products`);
   const colors = Array.from(
-    new Set(
-      res.rows
-        .map((r: any) => r.color)
-        .filter((v: any): v is string => typeof v === "string" && v.trim().length > 0)
-    )
+    new Set(rows.map((r: any) => r.color).filter((v: any): v is string => !!v?.trim()))
   ).sort((a, b) => a.localeCompare(b, "ru"));
-
   const materials = Array.from(
-    new Set(
-      res.rows
-        .map((r: any) => r.material)
-        .filter((v: any): v is string => typeof v === "string" && v.trim().length > 0)
-    )
+    new Set(rows.map((r: any) => r.material).filter((v: any): v is string => !!v?.trim()))
   ).sort((a, b) => a.localeCompare(b, "ru"));
-
   return { colors, materials };
 }
