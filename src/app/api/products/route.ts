@@ -32,9 +32,10 @@ export async function POST(req: Request) {
     widthMm: fd.get("widthMm") ? Number(fd.get("widthMm")) : null,
   };
 
-  const newId = await createProduct(body); // ← СТРОКА
+  // newId ВСЕГДА строка (uuid)
+  const newId: string = await createProduct(body);
+
+  // Можно редиректить на список или на редактирование. Оставлю на редактирование:
   const url = new URL(`/admin/products/${encodeURIComponent(newId)}/edit`, req.url);
   return NextResponse.redirect(url);
 }
-
-

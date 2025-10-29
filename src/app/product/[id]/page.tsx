@@ -10,7 +10,7 @@ export async function generateMetadata(
   { params }: { params: Promise<{ id: string }> }
 ): Promise<Metadata> {
   const { id } = await params;
-  const pid = decodeURIComponent(id);
+  const pid = String(decodeURIComponent(id));
   const p = await getProduct(pid);
   if (!p) return { title: "Товар не найден — CozyRoll" };
   return { title: p.title, description: p.description ?? undefined };
@@ -20,7 +20,7 @@ export default async function ProductPage(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const pid = decodeURIComponent(id);
+  const pid = String(decodeURIComponent(id));
   const p = await getProduct(pid);
   if (!p) return notFound();
 
@@ -28,8 +28,6 @@ export default async function ProductPage(
     <section className="container py-10">
       <h1 className="text-3xl font-semibold">{p.title}</h1>
       <div className="mt-2 text-muted">{p.price} ₽</div>
-      {/* при желании: картинка, описание и т.п. */}
     </section>
   );
 }
-
