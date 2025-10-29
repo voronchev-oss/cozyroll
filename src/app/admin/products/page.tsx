@@ -8,7 +8,7 @@ export const runtime = "nodejs";
 const fmt = (n: number) => new Intl.NumberFormat("ru-RU").format(n);
 
 export default async function AdminProducts() {
-  // В Next 16 headers() -> Promise, поэтому ждём:
+  // В Next 16 headers() -> Promise
   const h = await headers();
   // Достаём CSRF-токен из cookie
   const raw = h.get("cookie") || "";
@@ -41,7 +41,7 @@ export default async function AdminProducts() {
               <tr key={p.id} className="border-t">
                 <td className="p-2">{p.title}</td>
                 <td className="p-2">{fmt(p.price || 0)} ₽</td>
-                <td className="p-2">{p.in_stock ? "В наличии" : "Нет"}</td>
+                <td className="p-2">{p.inStock ? "В наличии" : "Нет"}</td>
                 <td className="p-2">
                   <div className="flex gap-2">
                     <Link href={`/admin/products/${p.id}/edit`} className="px-3 py-1 border rounded">
