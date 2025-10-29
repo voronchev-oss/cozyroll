@@ -1,41 +1,72 @@
 // src/app/api/products/route.ts
 import { NextResponse } from "next/server";
-import { listProducts, createProduct } from "@/lib/db";
+import { createProduct, updateProduct, listProducts } from "@/lib/db";
 import { requireAdmin, requireCsrf } from "@/lib/api-guard";
 
 export const runtime = "nodejs";
 
+// Список товаров (для админки/каталога по умолчанию без фильтров)
 export async function GET() {
   const items = await listProducts();
   return NextResponse.json({ ok: true, items });
 }
 
+// Создание ИЛИ обновление товара одной формой.
+// Если пришёл hidden input name="id" → это UPDATE, иначе CREATE.
 export async function POST(req: Request) {
-  const auth = await requireAdmin();
-  if (auth) return auth;
+  // 1) охрана
+  const guard = await requireAdmin(req);
+  if (guard) return guard;
 
+  const csrfCheck = await requireCsrf(req);
+  if (csrfCheck) return csrfCheck;
+
+  // 2) читаем форму
   const fd = await req.formData();
-  const csrfRes = await requireCsrf(fd);
-  if (csrfRes) return csrfRes;
 
-  const body = {
-    sku: String(fd.get("sku") || ""),
-    title: String(fd.get("title") || "Без названия"),
-    description: fd.get("description") ? String(fd.get("description")) : null,
-    price: Math.round(Number(fd.get("price") || 0)),
-    currency: "RUB" as const,
-    inStock: !!fd.get("inStock"),
-    imageUrl: fd.get("imageUrl") ? String(fd.get("imageUrl")) : null,
-    material: fd.get("material") ? String(fd.get("material")) : null,
-    color: fd.get("color") ? String(fd.get("color")) : null,
-    pileHeight: fd.get("pileHeight") ? Number(fd.get("pileHeight")) : null,
-    widthMm: fd.get("widthMm") ? Number(fd.get("widthMm")) : null,
+  const getStr = (k: string) => {
+    const v = fd.get(k);
+    return v != null && String(v).trim() !== "" ? String(v).trim() : null;
+  };
+  const getNum = (k: string) => {
+    const v = fd.get(k);
+    if (v == null || String(v).trim() === "") return null;
+    const n = Number(String(v).replace(/\s/g, "").replace(",", "."));
+    return Number.isFinite(n) ? n : null;
   };
 
-  // newId ВСЕГДА строка (uuid)
-  const newId: string = await createProduct(body);
+  // цена в копейках
+  const priceRub = getNum("price");
+  const priceCents = priceRub != null ? Math.round(priceRub) * 100 : 0;
 
-  // Можно редиректить на список или на редактирование. Оставлю на редактирование:
-  const url = new URL(`/admin/products/${encodeURIComponent(newId)}/edit`, req.url);
-  return NextResponse.redirect(url);
+  const payload = {
+    sku: getStr("sku"),
+    title: getStr("title") || "Без названия",
+    description: getStr("description"),
+    price: priceCents,
+    inStock: fd.get("inStock") ? true : false,
+    imageUrl: getStr("imageUrl"),
+    material: getStr("material"),
+    color: getStr("color"),
+    pileHeight: getNum("pileHeight"),
+    widthMm: getNum("widthMm"),
+  };
+
+  const id = getStr("id");
+
+  if (id) {
+    await updateProduct(id, payload);
+    // после обновления — остаёмся на edit
+    return NextResponse.redirect(
+      new URL(`/admin/products/${id}/edit`, req.url),
+      303
+    );
+  } else {
+    const newId = await createProduct(payload);
+    // после создания — на edit новой карточки
+    return NextResponse.redirect(
+      new URL(`/admin/products/${newId}/edit`, req.url),
+      303
+    );
+  }
 }
