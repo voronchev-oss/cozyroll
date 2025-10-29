@@ -1,46 +1,53 @@
 // src/app/api/admin/products/new/route.ts
+import { NextResponse } from "next/server";
+import { createProduct } from "@/lib/db";
+import { requireAdmin, requireCsrf } from "@/lib/api-guard";
+
 export const runtime = "nodejs";
 
-import { NextResponse } from "next/server";
-import { createProduct, type Product } from "@/lib/db";
-
 export async function POST(req: Request) {
+  // 1) Авторизация админа
+  const auth = await requireAdmin();
+  if (auth) return auth;
+
+  // 2) Тело формы + CSRF
   const fd = await req.formData();
+  const csrfRes = await requireCsrf(fd);
+  if (csrfRes) return csrfRes;
 
-  const getStr = (key: string) => {
-    const v = fd.get(key);
-    return typeof v === "string" && v.trim() ? v.trim() : null;
+  // Утилиты для чтения полей
+  const getStr = (k: string) => {
+    const v = fd.get(k);
+    const s = v == null ? "" : String(v).trim();
+    return s.length ? s : null;
   };
-
-  const getNum = (key: string) => {
-    const v = fd.get(key);
-    if (typeof v !== "string") return null;
+  const getNum = (k: string) => {
+    const v = fd.get(k);
+    if (v == null) return null;
     const n = Number(v);
     return Number.isFinite(n) ? n : null;
   };
 
-  // Цена в рублях как целое число (у нас price: INTEGER в БД)
-  const priceRub = getNum("price") ?? 0;
-
-  const data: Partial<Product> = {
+  // 3) Сопоставление полей формы -> Product
+  //    ВАЖНО: используем имена из типа Product (widthMm, pileHeight).
+  //    На всякий случай поддерживаем и старые названия (rollWidthMm, pileHeightMm).
+  const body = {
     sku: getStr("sku"),
-    title: getStr("title") || "Без названия",
+    title: String(fd.get("title") || "Без названия"),
     description: getStr("description"),
-    price: priceRub,
-    currency: "RUB",
+    price: Math.round(Number(fd.get("price") || 0)),
+    currency: "RUB" as const,
     inStock: !!fd.get("inStock"),
-    color: getStr("color"),
-    material: getStr("material"),
-    // ВАЖНО: имена соответствуют типу Product
-    rollWidthMm: getNum("rollWidthMm"),
-    pileHeightMm: getNum("pileHeightMm"),
     imageUrl: getStr("imageUrl"),
+    material: getStr("material"),
+    color: getStr("color"),
+    widthMm: getNum("widthMm") ?? getNum("rollWidthMm"),
+    pileHeight: getNum("pileHeight") ?? getNum("pileHeightMm"),
   };
 
-  const p = await createProduct(data);
-  // после создания переходим на редактирование
+  // 4) Создание и редирект на редактирование
+  const id = await createProduct(body); // ← строка UUID
   return NextResponse.redirect(
-    new URL(`/admin/products/${encodeURIComponent(p.id)}/edit`, req.url),
-    { status: 303 }
+    new URL(`/admin/products/${encodeURIComponent(id)}/edit`, req.url)
   );
 }
