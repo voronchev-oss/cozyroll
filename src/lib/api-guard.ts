@@ -1,34 +1,46 @@
 // src/lib/api-guard.ts
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { NextResponse } from "next/server";
 
-export const AUTH_COOKIE = "cozyroll_auth";
-export const CSRF_COOKIE = "cozyroll_csrf";
+// Куки для авторизации и CSRF
+export const AUTH_COOKIE_NAME = "cozyroll_auth";   // значение "admin" = авторизован
+export const CSRF_COOKIE_NAME = "cozyroll_csrf";
 
-// Чтение cookie из заголовков (Next 16: headers() -> Promise<ReadonlyHeaders>)
-async function getCookie(name: string): Promise<string | null> {
-  const h = await headers();
-  const raw = h.get("cookie") || "";
-  const m = raw.match(new RegExp(`${name}=([^;]+)`));
-  return m ? decodeURIComponent(m[1]) : null;
-}
-
-// Проверка «вошёл ли админ»
+// Простейшая проверка "сессии" администратора
 export async function requireAdmin() {
-  const token = await getCookie(AUTH_COOKIE);
-  if (!token || token !== "admin") {
+  const c = await cookies();
+  const val = c.get(AUTH_COOKIE_NAME)?.value;
+  if (val !== "admin") {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
-  return null;
+  return null as const;
 }
 
-// Сверка CSRF: токен из куки vs токен из формы (hidden input name="csrf")
+/** Достаём CSRF-токен из заголовков (cookie) — для серверных компонент/страниц */
+export function pickCsrfFromHeaders(h: Readonly<Headers> | Headers): string {
+  const raw = h.get("cookie") || "";
+  const m = raw.match(/(?:^|;\s*)cozyroll_csrf=([^;]+)/);
+  return m ? decodeURIComponent(m[1]) : "";
+}
+
+/** Проверяем CSRF в POST: сравниваем hidden field "csrf" c значением в cookie */
 export async function requireCsrf(formData: FormData) {
-  const fromCookie = await getCookie(CSRF_COOKIE);
-  const fromForm = String(formData.get("csrf") || "");
-  if (!fromCookie || !fromForm || fromCookie !== fromForm) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  // cookie можно взять либо так…
+  const c = await cookies();
+  const cookieToken = c.get(CSRF_COOKIE_NAME)?.value || "";
+  // …либо из заголовков:
+  if (!cookieToken) {
+    const h = await headers();
+    const hdrToken = pickCsrfFromHeaders(h);
+    if (!hdrToken) {
+      return NextResponse.json({ error: "csrf_missed" }, { status: 403 });
+    }
   }
-  return null;
+
+  const bodyToken = String(formData.get("csrf") || "");
+  if (!bodyToken || bodyToken !== (c.get(CSRF_COOKIE_NAME)?.value || "")) {
+    return NextResponse.json({ error: "csrf_invalid" }, { status: 403 });
+  }
+  return null as const;
 }
 
