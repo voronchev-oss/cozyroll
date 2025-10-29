@@ -11,19 +11,20 @@ export async function GET() {
   return NextResponse.json({ ok: true, items });
 }
 
-// Создание ИЛИ обновление товара одной формой.
-// Если пришёл hidden input name="id" → UPDATE, иначе CREATE.
+// Создание/обновление товара
 export async function POST(req: Request) {
   // 1) охрана
-  const guard = await requireAdmin(); // <— без аргументов
+  const guard = await requireAdmin(); // без аргументов
   if (guard) return guard;
-
-  const csrfCheck = await requireCsrf(req); // <— здесь аргумент нужен
-  if (csrfCheck) return csrfCheck;
 
   // 2) читаем форму
   const fd = await req.formData();
 
+  // 3) проверяем CSRF (эта функция ожидает FormData)
+  const csrfCheck = await requireCsrf(fd);
+  if (csrfCheck) return csrfCheck;
+
+  // 4) парсинг полей
   const getStr = (k: string) => {
     const v = fd.get(k);
     return v != null && String(v).trim() !== "" ? String(v).trim() : null;
@@ -35,7 +36,6 @@ export async function POST(req: Request) {
     return Number.isFinite(n) ? n : null;
   };
 
-  // цена в копейках
   const priceRub = getNum("price");
   const priceCents = priceRub != null ? Math.round(priceRub) * 100 : 0;
 
